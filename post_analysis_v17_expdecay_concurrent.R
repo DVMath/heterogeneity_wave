@@ -274,8 +274,22 @@ parallel:::setDefaultClusterOptions(setup_strategy = "sequential")
 myargs <- commandArgs(trailingOnly = TRUE)
 print(myargs[1])
 
-modelfile <- 'myclaphammodel_v16_noEIP_covar_surv_ln.stan'
+modelfile <- 'myclaphammodel_v17_elife_expdecay_concurrent.stan'
 print(modelfile)
+
+# Exp-decay concurrent-Vt variant of post_analysis_v17.R: loads the
+# posterior from run_elife_expdecay_concurrent_model.R (exp-decay eLife
+# curve -- A_elife[i]/k_elife -- instead of the up-down curve, main
+# cohort's lptrans on vt[jj,ll] concurrent, trans_lag_days = 0). This is
+# now the primary/final result: LOO decisively favors exp-decay over
+# up-down (elpd_diff -340.7, SE 20.1, elife_kinetics_model_comparison.R),
+# and the full joint exp-decay fit's trans0/trans1 matched the standalone
+# eLife-only shortcut almost exactly (0.145 vs 0.149), confirming both are
+# trustworthy. Outputs go to figures_new/, replacing the up-down-based
+# figures/tables produced there previously by post_analysis_v17_concurrent.R.
+outdir <- "figures_new"
+dir.create(outdir, showWarnings = FALSE)
+outpath <- function(f) file.path(outdir, f)
 
 nchain <- 4
 
@@ -321,7 +335,7 @@ save(posterior_samples, file = "bmc_leakage_posterior_ln.RData")
 #load("bmc_fit_leakage.RData")
 #load("bmc_leakage_ln.RData")
 #load("bmc_fit_leakage_ln.RData")
-load("bmc_leakage_posterior_ln.RData")
+load("elife_kinetics_posterior_expdecay_concurrent_lag0.RData")
 
 posterior <- posterior_samples
 
@@ -475,33 +489,33 @@ p_box_facet <- ggplot() +
     title = "50% and 95% credible regions"
   )
 
-my_theme_pub <- theme_classic(base_size = 11, base_family = "serif") +
+my_theme_pub <- theme_classic(base_size = 14, base_family = "serif") +
   theme(
     axis.line        = element_line(linewidth = 0.4),
     axis.ticks       = element_line(linewidth = 0.3),
-    axis.text        = element_text(colour = "black", size = 9),
-    axis.title       = element_text(size = 11),
-    plot.title       = element_text(size = 11, face = "bold", hjust = 0.5),
+    axis.text        = element_text(colour = "black", size = 12),
+    axis.title       = element_text(size = 14),
+    plot.title       = element_text(size = 14, face = "bold", hjust = 0.5),
     panel.grid.major = element_line(colour = "grey94", linewidth = 0.3),
-    strip.text       = element_text(size = 10, face = "bold"),
+    strip.text       = element_text(size = 13, face = "bold"),
     strip.background = element_blank(),
     legend.position  = "bottom",
-    legend.text      = element_text(size = 9),
+    legend.text      = element_text(size = 12),
     plot.margin      = margin(8, 8, 8, 8)
   )
 
-my_theme_pub_x <- theme_classic(base_size = 11, base_family = "serif") +
+my_theme_pub_x <- theme_classic(base_size = 14, base_family = "serif") +
   theme(
     axis.line        = element_line(linewidth = 0.4),
     axis.ticks       = element_line(linewidth = 0.3),
-    axis.text        = element_text(colour = "black", size = 9),
-    axis.title       = element_text(size = 11),
-    plot.title       = element_text(size = 11, face = "bold", hjust = 0.5),
+    axis.text        = element_text(colour = "black", size = 12),
+    axis.title       = element_text(size = 14),
+    plot.title       = element_text(size = 14, face = "bold", hjust = 0.5),
     panel.grid.major = element_line(colour = "grey94", linewidth = 0.3),
-    strip.text       = element_text(size = 10, face = "bold"),
+    strip.text       = element_text(size = 13, face = "bold"),
     strip.background = element_blank(),
     legend.position  = "none",
-    legend.text      = element_text(size = 9),
+    legend.text      = element_text(size = 12),
     plot.margin      = margin(8, 8, 8, 8)
   )
 
@@ -518,24 +532,24 @@ p_combined1 <- (p_scatter + my_theme_pub) +
 
 p_combined1
 
-my_theme_pub <- theme_classic(base_size = 11, base_family = "serif") +
+my_theme_pub <- theme_classic(base_size = 14, base_family = "serif") +
   theme(
     axis.line        = element_line(linewidth = 0.4),
     axis.ticks       = element_line(linewidth = 0.3),
-    axis.text        = element_text(colour = "black", size = 9),
-    axis.title       = element_text(size = 11),
-    plot.title       = element_text(size = 11, face = "bold", hjust = 0.5),
+    axis.text        = element_text(colour = "black", size = 12),
+    axis.title       = element_text(size = 14),
+    plot.title       = element_text(size = 14, face = "bold", hjust = 0.5),
     panel.grid.major = element_line(colour = "grey94", linewidth = 0.3),
-    strip.text       = element_text(size = 10, face = "bold"),
+    strip.text       = element_text(size = 13, face = "bold"),
     strip.background = element_blank(),
     legend.position  = "bottom",
-    legend.text      = element_text(size = 9),
+    legend.text      = element_text(size = 12),
     legend.title     = element_blank(),
     plot.margin      = margin(8, 8, 8, 8)
   )
 
-ggsave("psev_sumrv_combined.pdf",  plot = p_combined1, width = 11, height = 6, device = cairo_pdf)
-ggsave("psev_sumrv_combined.tiff", plot = p_combined1, width = 11, height = 6, dpi = 600, compression = "lzw")
+ggsave(outpath("psev_sumrv_combined.pdf"),  plot = p_combined1, width = 11, height = 6, device = cairo_pdf)
+ggsave(outpath("psev_sumrv_combined.tiff"), plot = p_combined1, width = 11, height = 6, dpi = 600, compression = "lzw")
 
 
 library(gt)
@@ -640,7 +654,7 @@ tbl_summary <- df_summary_table %>%
     stub.border.width                 = px(0)
   )
 
-gtsave(tbl_summary, "sumrv_psev_summary_table.html")
+gtsave(tbl_summary, outpath("sumrv_psev_summary_table.html"))
 
 print(tbl_summary)
 
@@ -854,8 +868,8 @@ p_fit <- p_cases_fit + p_deaths_fit +
 
 p_fit 
 
-ggsave("observed_vs_fit.pdf",  plot = p_fit, width = 10, height = 4.5, device = cairo_pdf)
-ggsave("observed_vs_fit.tiff", plot = p_fit, width = 10, height = 4.5, dpi = 600, compression = "lzw")
+ggsave(outpath("observed_vs_fit.pdf"),  plot = p_fit, width = 10, height = 4.5, device = cairo_pdf)
+ggsave(outpath("observed_vs_fit.tiff"), plot = p_fit, width = 10, height = 4.5, dpi = 600, compression = "lzw")
 
 
 # table #
@@ -894,14 +908,14 @@ df_table <- tribble(
   
   # --- Transmission model ---
   "Transmission",   "trans0",                                          fmt_cri(posterior$trans0),
-  "Transmission",   "trans1",                                          fmt_cri(posterior$trans1, uselog10 = TRUE),
+  "Transmission",   "trans1",                                          fmt_cri(posterior$trans1),
   
   # --- Survival model ---
   "Survival",       "gamma0 (intercept)",                              fmt_cri(posterior$gamma0),
   "Survival",       "gammaa (sex: male)",                              fmt_cri(posterior$gammaa),
   "Survival",       "gammab (age level binary)",                       fmt_cri(posterior$gammab),
   "Survival",       "gammat (time)",                 fmt_cri(posterior$betat),
-  "Survival",       "gammar (cumulative viral titer)",                 fmt_cri(posterior$gammar, uselog10 = TRUE),
+  "Survival",       "gammar (cumulative viral titer)",                 fmt_cri(posterior$gammar),
   
   # --- Kinetics model ---
   "Kinetics",       "alphas (mean of medians [range])",                fmt_ind(posterior$alphas),
@@ -952,7 +966,7 @@ tbl <- df_table %>%
   cols_align(align = "right", columns = Summary)
 
 # As HTML (interactive, high quality)
-gtsave(tbl, "posterior_table.html")
+gtsave(tbl, outpath("posterior_table.html"))
 
 print(tbl)
 
@@ -1031,13 +1045,21 @@ df_vt <- df_vt %>%
     facet_label
   ))
 
-my_theme_small <- theme_classic(base_size = 7, base_family = "serif") +
+# Facet panels default to alphabetical order on the character facet_label
+# ("Ind 1", "Ind 10", "Ind 11", ..., "Ind 2", ...) -- make it a factor
+# ordered by the numeric individual id instead, applied identically to both
+# data frames feeding this plot so facet_wrap sees consistent levels.
+individual_levels <- glue("Ind {sort(unique(c(df_obs$individual, df_vt$individual)))}")
+df_obs <- df_obs %>% mutate(facet_label = factor(facet_label, levels = individual_levels))
+df_vt  <- df_vt  %>% mutate(facet_label = factor(facet_label, levels = individual_levels))
+
+my_theme_small <- theme_classic(base_size = 9, base_family = "serif") +
   theme(
     axis.line        = element_line(linewidth = 0.3),
     axis.ticks       = element_line(linewidth = 0.2),
-    axis.text        = element_text(colour = "black", size = 9),
-    axis.title       = element_text(size = 10),
-    strip.text       = element_text(size = 11, face = "bold"),
+    axis.text        = element_text(colour = "black", size = 11),
+    axis.title       = element_text(size = 13),
+    strip.text       = element_text(size = 12, face = "bold"),
     strip.background = element_blank(),
     panel.grid.major = element_line(colour = "grey94", linewidth = 0.2),
     plot.margin      = margin(2, 2, 2, 2),
@@ -1092,13 +1114,13 @@ p_kinetics <- ggplot() +
 
 p_kinetics
 
-ggsave("kinetics_individuals.pdf",
+ggsave(outpath("kinetics_individuals.pdf"),
        plot   = p_kinetics,
        width  = 16,
        height = 16,
        device = cairo_pdf)
 
-ggsave("kinetics_individuals.tiff",
+ggsave(outpath("kinetics_individuals.tiff"),
        plot        = p_kinetics,
        width       = 16,
        height      = 16,
@@ -1167,38 +1189,51 @@ time_evt <- summarise_cont(mydata$tevent, kin_male)
 obs_n    <- summarise_cont(n_obs_per_ind, kin_male, digits = 0)
 peak_vt  <- summarise_cont(peak_obs,      kin_male)
 
-# inf_contact: binary — transmission occurred (length = n contacts)
-# day_VL:      viral titer at day of contact
-# These are NOT indexed by individual — summarise overall + by male
+# ---------------------------------------------------------------------------
+# Transmission Cohort descriptive stats: reconstruct the ACTUAL contact set
+# used to fit trans0/trans1 in this (concurrent-Vt) model -- contacts_elife,
+# built exactly as in run_elife_kinetics_concurrent_model.R's Part 2 -- not
+# the old df_inf/mydata$inf_contact set (day_VL-filtered, from
+# analise_trans_submodel.R) used by the superseded static-VL transmission
+# submodel. N differs (567 here vs. 679 previously) because the inclusion
+# criterion changed from "case has a day-0 VL" to "contact has a non-missing
+# exposure date and its donor case has a non-missing symptom-onset date".
+# ---------------------------------------------------------------------------
+df_elife_t1 <- read_csv("./elife-69302-data1-v2-converted.csv", show_col_types = FALSE)
 
-# Attempt to get individual index for transmission observations
-if (!is.null(mydata$ind_trans)) {
-  male_trans <- mydata$male[mydata$ind_trans]
-} else {
-  male_trans <- rep(NA, length(mydata$inf_contact))
-}
+cases_elife_t1 <- df_elife_t1 %>%
+  distinct(case_id, case_earliest_date_symptoms) %>%
+  mutate(symp_date = as.Date(case_earliest_date_symptoms)) %>%
+  arrange(case_id) %>%
+  mutate(case_idx = row_number())
 
-trans_cat  <- if (any(!is.na(male_trans))) {
-  summarise_cat(mydata$inf_contact, male_trans)
-} else {
-  list(
-    overall = fmt_n_pct(mydata$inf_contact, length(mydata$inf_contact)),
-    male    = "—",
-    female  = "—"
-  )
-}
+contacts_elife_t1 <- df_elife_t1 %>%
+  left_join(cases_elife_t1 %>% select(case_id, symp_date), by = "case_id") %>%
+  mutate(exp_date = as.Date(date_first_exposure),
+         t_exposure = as.numeric(exp_date - symp_date)) %>%
+  filter(!is.na(infected_contact), !is.na(t_exposure))
 
-dayvl_cont <- if (any(!is.na(male_trans))) {
-  summarise_cont(mydata$day_VL/log(10), male_trans)
-} else {
-  list(
-    overall = fmt_median_iqr(mydata$day_VL/log(10)),
-    male    = "—",
-    female  = "—"
-  )
-}
+N_trans <- nrow(contacts_elife_t1)
 
-N_trans <- length(mydata$inf_contact)
+trans_cat <- list(
+  overall = fmt_n_pct(contacts_elife_t1$infected_contact, N_trans),
+  male    = "—",
+  female  = "—"
+)
+
+# vt_exposure: per-contact posterior draws, natural-log scale (matching
+# y_obs_elife). Point value per contact = posterior median (plays the same
+# role the old single fixed day_VL value did); summarised across contacts on
+# the log10 scale to match the rest of the table (all other viral-titer rows
+# are log10 copies/mL).
+stopifnot(!is.null(posterior$vt_exposure), ncol(posterior$vt_exposure) == N_trans)
+vt_exposure_point <- apply(posterior$vt_exposure, 2, median) / log(10)
+
+dayvl_cont <- list(
+  overall = fmt_median_iqr(vt_exposure_point),
+  male    = "—",
+  female  = "—"
+)
 
 # tc_obs:    time points (days)
 # Cumulative cases and deaths at each tc_obs
@@ -1300,7 +1335,7 @@ tbl <- rows %>%
     data_row.padding              = px(5)
   )
 
-gtsave(tbl, "table1.html")
+gtsave(tbl, outpath("table1.html"))
 
 print(tbl)
 
@@ -2120,18 +2155,35 @@ df_annotations_5_old <- df_annotations_5
 df_annotations_5_old %>%
   filter(scenario!="best") -> df_annotations_5
 
-my_theme_pub_y <- theme_classic(base_size = 16, base_family = "serif") +
+# ---------------------------------------------------------------------------
+# Checkpoint: everything needed to draw Figure 3 (sir_extreme_individuals) is
+# now computed -- the two long simulation loops that build df_sir_all5 etc.
+# are done. Save the whole workspace so a pure styling/labeling change to
+# Figure 3 (theme, fonts, titles, legend) can be re-plotted in seconds by
+# loading this file, instead of re-running the ~15-45 min loops above from
+# scratch. Use in a small follow-up script:
+#   library(tidyverse); library(rstan); library(patchwork); library(cowplot)
+#   load("checkpoint_before_fig3.RData")
+#   <just the Figure 3 ggplot/theme/ggsave code from here to the end of this
+#    section>
+# Re-run the full script (not this checkpoint) if anything upstream of this
+# point changes (data, model, archetype selection, simulation logic, etc.).
+# ---------------------------------------------------------------------------
+save.image(file = "checkpoint_before_fig3.RData")
+cat("Saved checkpoint_before_fig3.RData\n")
+
+my_theme_pub_y <- theme_classic(base_size = 20, base_family = "serif") +
   theme(
     axis.line        = element_line(linewidth = 0.4),
     axis.ticks       = element_line(linewidth = 0.3),
-    axis.text        = element_text(colour = "black", size = 16),
-    axis.title       = element_text(size = 15),
-    plot.title       = element_text(size = 18, face = "bold", hjust = 0.5),
+    axis.text        = element_text(colour = "black", size = 20),
+    axis.title       = element_text(size = 22),
+    plot.title       = element_text(size = 22, face = "bold", hjust = 0.5),
     panel.grid.major = element_line(colour = "grey94", linewidth = 0.3),
-    strip.text       = element_text(size = 15, face = "bold"),
+    strip.text       = element_text(size = 19, face = "bold"),
     strip.background = element_blank(),
     legend.position  = "bottom",
-    legend.text      = element_text(size = 16),
+    legend.text      = element_text(size = 20),
     plot.margin      = margin(8, 8, 8, 8)
   )
 
@@ -2167,9 +2219,9 @@ p_row_kinetics <- ggplot() +
 #    size = 2.6, lineheight = 1.2,
 #    show.legend = FALSE
 #  ) +
-  scale_colour_manual(values = scenario_colours,
-                      labels = scenario_labels, name = NULL) +
-  scale_fill_manual(  values = scenario_colours, guide = "none") +
+  scale_colour_manual(values = scenario_colours_5,
+                      labels = scenario_labels_5, name = NULL) +
+  scale_fill_manual(  values = scenario_colours_5, guide = "none") +
 #  facet_wrap(~ scenario, nrow = 1, labeller = sc_labeller) +
   facet_wrap(~ scenario, nrow = 1) +
   labs(x = NULL, y = "Viral titer", title = "Viral kinetics",
@@ -2264,11 +2316,11 @@ p_row_deaths <- ggplot() +
     aes(x = time, y = ndeaths_median, colour = scenario),
     linewidth = 0.9
   ) +
-  scale_colour_manual(values = scenario_colours,
-                      labels = scenario_labels, name = NULL) +
-  scale_fill_manual(  values = scenario_colours, guide = "none") +
+  scale_colour_manual(values = scenario_colours_5,
+                      labels = scenario_labels_5, name = NULL) +
+  scale_fill_manual(  values = scenario_colours_5, guide = "none") +
   scale_y_continuous(labels = scales::comma, limits = deaths_lim) +
-  facet_wrap(~ scenario, nrow = 1, labeller = sc_labeller) +
+  facet_wrap(~ scenario, nrow = 1, labeller = sc_labeller_5) +
   labs(x = "Time (days)", y = "Incident deaths",
        title = "Deaths per interval",
        tag   = "C") +
@@ -2303,11 +2355,10 @@ p_pop_cases <- ggplot() +
   scale_y_continuous(labels = scales::comma, limits = cases_lim) +
   labs(x = NULL, y = "Incident cases",
        tag   = "D",
-       title = "Population level\n(\u03b2/\u03b3/\u03c9_trans)") +
+       title = "Population level") +
   my_theme_pub_y +
   theme(axis.text.x  = element_blank(),
-        axis.ticks.x = element_blank(),
-        plot.title   = element_text(size = 9, face = "bold", hjust = 0.5))
+        axis.ticks.x = element_blank())
 
 p_pop_deaths <- ggplot() +
   geom_ribbon(
@@ -2350,7 +2401,7 @@ leg <- get_legend(
                         labels = scenario_labels_5, name = NULL) +
     my_theme_pub_y +
     theme(legend.position  = "bottom",
-          legend.text      = element_text(size = 14),
+          legend.text      = element_text(size = 20),
           legend.key.width = unit(1.2, "cm"))
 )
 
@@ -2399,16 +2450,16 @@ p_final <- (p_main_col | p_pop_col) +
 #    ),
     theme = theme(
    #   plot.caption      = element_text(size = 8, colour = "grey50", hjust = 0),
-      plot.tag          = element_text(size = 13, face = "bold", family = "serif"),
+      plot.tag          = element_text(size = 16, face = "bold", family = "serif"),
       plot.tag.position = "topleft"
     )
   )
 
 p_final
 
-ggsave("sir_extreme_individuals.pdf",  plot = p_final,
+ggsave(outpath("sir_extreme_individuals.pdf"),  plot = p_final,
        width = 20, height = 12, device = cairo_pdf)
-ggsave("sir_extreme_individuals.tiff", plot = p_final,
+ggsave(outpath("sir_extreme_individuals.tiff"), plot = p_final,
        width = 20, height = 12, dpi = 600, compression = "lzw")
 
 cat("Saved sir_extreme_individuals.pdf and .tiff\n")
@@ -2605,7 +2656,7 @@ tbl_targets <- df_target_table %>%
     stub.border.width                 = px(0)
   )
 
-gtsave(tbl_targets, "target_individuals_summary.html")
+gtsave(tbl_targets, outpath("target_individuals_summary.html"))
 
 print(tbl_targets)
 
@@ -2687,6 +2738,6 @@ tbl_gt <- tbl |>
   ) |>
   tab_header(title = "Posterior summaries: sumrv and psev by individual")
 
-gtsave(tbl_gt, "posterior_summary.html")
+gtsave(tbl_gt, outpath("posterior_summary.html"))
 
 print(tbl_gt)

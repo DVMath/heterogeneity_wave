@@ -1,3 +1,19 @@
+/* Concurrent-Vt variant of myclaphammodel_v17_elife_expdecay.stan.
+
+   Same one-line fix as myclaphammodel_v17_elife_kinetics_concurrent.stan
+   (see that file's header for the full rationale): the base model always
+   couples the main cohort's own transmission risk at day ll to the
+   PREVIOUS day's viral load, vt[jj, ll-1], regardless of trans_lag_days --
+   that field only controls the eLife-contact donor-exposure lookup
+   timing, a separate part of the model. This variant makes the main
+   cohort concurrent too: lptrans[jj, ll] driven by vt[jj, ll] instead of
+   vt[jj, ll-1]. Combined with trans_lag_days = 0, this is the fully
+   concurrent expdecay model -- the exp-decay-curve counterpart to
+   myclaphammodel_v17_elife_kinetics_concurrent.stan, run with identical
+   settings so the two eLife curve families (up-down vs. decline-only) are
+   comparable under the same main-cohort transmission timing convention.
+   Only that one line differs from myclaphammodel_v17_elife_expdecay.stan.
+*/
 functions {
   array[] real SIR(real t, array[] real y, array[] real theta,
   data array[] real x_r, data array[] int x_i) {
@@ -37,7 +53,27 @@ data {
   array[N_ind] int serotype;
   array[N_ind] int tevent;
   array[N_contact] int inf_contact;
-  array[N_contact] real day_VL;
+  /* eLife contact-tracing kinetics submodel: replaces the old fixed day_VL
+     covariate with a per-contact viral load predicted from the donor case's
+     own fitted trajectory, evaluated at (lag-adjustable) exposure time.
+     This variant uses a plain exponential decline (one intercept per
+     individual, one shared decay rate) instead of the up-down curve --
+     see myclaphammodel_v17_elife_kinetics.stan for that version. Motivated
+     by identifiability diagnostics: only 5 of 282 eLife cases capture an
+     actual peak in their own data (day 0/3/7 post-symptom-onset swabs
+     almost never span it), so the up-down curve's growth-phase parameters
+     were essentially unidentified for the rest, and a standalone LOO
+     comparison (elife_kinetics_model_comparison.R) showed the exp-decay
+     curve fits decisively better (elpd_diff = -340.7, SE 20.1) with
+     healthy Pareto-k diagnostics where the up-down curve did not. */
+  int N_ind_elife;                 // unique eLife index cases (some may have 0 VL points)
+  int N_obs_elife;                 // total (case, visit) VL observations
+  array[N_obs_elife] real y_obs_elife;              // log VL, natural log scale
+  array[N_obs_elife] int<lower=1, upper=N_ind_elife> ind_elife;
+  array[N_obs_elife] real t_elife; // days since symptom onset
+  array[N_contact] int<lower=1, upper=N_ind_elife> contact_case_idx;  // which eLife case is this contact's donor
+  array[N_contact] real t_exposure_elife;  // date_first_exposure - case_earliest_date_symptoms, days
+  real trans_lag_days;             // 0 = concurrent Vt at exposure; 1 = one-day lag, etc.
   int nserotype;
  // real mean_t;
 //  real sd_t;
@@ -111,6 +147,13 @@ parameters {
    real c_mu;
   real<lower=0> c_sigma;
   vector[N_ind] c_raw;          // non-centered
+
+  /* eLife kinetics submodel -- exponential decline, own hyperparameters */
+  real A_mu_elife;
+  real<lower=0> A_sigma_elife;
+  vector[N_ind_elife] A_raw_elife;
+  real<lower=0> k_elife;
+  real<lower=0> sigma_meas_elife;
 }
 transformed parameters {
  // array[N_ind] real<lower =0> tau;
@@ -125,6 +168,10 @@ transformed parameters {
   array[N_contact] real transv;
   array[nserotype] real fserotype;
   array[N_ind] real ci;
+  /* eLife kinetics submodel -- exponential decline */
+  vector[N_ind_elife] A_elife;
+  array[N_obs_elife] real yt_elife;
+  array[N_contact] real vt_exposure;   // predicted donor VL at (lagged) exposure time
  // real alpha;
   real a;
   real b;
@@ -175,8 +222,22 @@ transformed parameters {
   //  ci[i] = c_raw[i];
   }
   // y_hat = ode_rk45(SIR, y_init, t0, ts, theta);
+ /* eLife kinetics submodel: fit each case's own exponential decline (one
+    intercept per case, one shared decay rate), then predict that case's
+    viral load at each of its contacts' (lag-adjusted) exposure times.
+    Cases with 0 VL points still get a curve -- it's just the
+    population-average intercept, with correspondingly wide uncertainty. */
+ A_elife = A_mu_elife + A_raw_elife * A_sigma_elife;
+ for (ii in 1:N_obs_elife) {
+   yt_elife[ii] = A_elife[ind_elife[ii]] - k_elife * t_elife[ii];
+ }
  for (lj in 1:N_contact) {
-  transv[lj] = trans0 + trans1l * day_VL[lj]; 
+   real t_used = t_exposure_elife[lj] - trans_lag_days;
+   int cc = contact_case_idx[lj];
+   vt_exposure[lj] = A_elife[cc] - k_elife * t_used;
+ }
+ for (lj in 1:N_contact) {
+  transv[lj] = trans0 + trans1l * vt_exposure[lj];
  }
  fserotype[1] = 0;
  if (nserotype>1) {
@@ -214,7 +275,7 @@ transformed parameters {
     sumvt[jj, 1] = exp(vt[jj, 1]); // d_fixed + alphas[jj] - log1p_exp(betas[jj] - ci[jj]);
     if (1==1) {
       lpsurv[jj, 1] = log1m_inv_logit(gamma_linear + betat* 1 + gammar_l * maxi[jj]);
-    lptrans[jj, 1] = log_inv_logit(trans0 + trans1l * vt[jj, 1]);
+    lptrans[jj, 1] = log_inv_logit(trans0 + trans1l * vt[jj, 1]); // no lag available at ll=1, falls back to concurrent Vt
     rv[jj, 1] = exp(lptrans[jj, 1] + logS);
     logS += log1m_exp(lpsurv[jj,1]);
     // Times 2:30
@@ -225,7 +286,7 @@ transformed parameters {
       if (is_nan(sumvt[jj,ll]) || is_inf(sumvt[jj,ll])) reject("bad sumvt");
      // print("vt ", jj, " ll ", ll, " value ", vt[jj,ll], " sumvt ", sumvt[jj,ll]);
       lpsurv[jj, ll] = log1m_inv_logit(gamma_linear + betat * ll + gammar_l * maxi[jj]);
-      lptrans[jj, ll] = log_inv_logit(trans0 + trans1l * vt[jj, ll]);
+      lptrans[jj, ll] = log_inv_logit(trans0 + trans1l * vt[jj, ll]); // concurrent Vt: transmission at ll driven by titer at ll
       rv[jj, ll] = exp(lptrans[jj, ll] + logS);
       logS += log1m_exp(lpsurv[jj,ll]);
     }
@@ -312,6 +373,14 @@ c ~ normal(0,1);
   c_sigma ~ exponential(1);
   c_raw ~ std_normal();
 // d ~ normal(0,1);
+
+/* eLife kinetics submodel priors -- exponential decline */
+A_mu_elife ~ normal(0, 10);
+A_sigma_elife ~ exponential(1);
+A_raw_elife ~ std_normal();
+k_elife ~ exponential(1);
+sigma_meas_elife ~ exponential(1);
+y_obs_elife ~ normal(yt_elife, sigma_meas_elife);
 /* tau */
 for (j in 1:N_ind) {
   //ltau[j] ~ normal(p, q);
