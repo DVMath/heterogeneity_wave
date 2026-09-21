@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "heterogeneity_wave: joint within-host kinetics, survival, transmission, and population SIR model for COVID-19"
+authors:
+  - family-names: Villela
+    given-names: Daniel A. M.
+    email: daniel.villela@fiocruz.br
+    affiliation: "Fundação Oswaldo Cruz (Fiocruz)"
+    orcid: "https://orcid.org/0000-0001-8371-2959"
+version: 1.0.0
+date-released: 2026-09-21
+repository-code: "https://github.com/DVMath/heterogeneity_wave"
+license: GPL-3.0
